@@ -19,13 +19,13 @@ always @(posedge clk)
 
 // Debounce the switch
 // Debounce the switch
-reg [15:0] PB_cnt;
+reg [2:0] PB_cnt;
 always @(posedge clk)
 if(PB_state==PB_sync_1)
     PB_cnt <= 0;
 else
 begin
     PB_cnt <= PB_cnt + 1'b1;
-    if(PB_cnt == 16'hffff) PB_state <= ~PB_state;
+    if(PB_cnt == 3'hffff) PB_state <= ~PB_state;
 end
 endmodule
