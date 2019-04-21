@@ -1,10 +1,6 @@
 // look in pins.pcf for all the pin names on the TinyFPGA BX board
 module top (
   input CLK,       // 16MHz clock
-  output PIN_1,    // PIN_1
-  output PIN_2,
-  output PIN_3,
-  output PIN_4,
   output PIN_5,
   output PIN_6,
   output PIN_7,
@@ -19,8 +15,10 @@ module top (
   output PIN_16,
   output PIN_17,
   output PIN_18,
+  output PIN_19,
   output PIN_20,
   output PIN_21,
+  output PIN_22,
 
   input PIN_23,
   input PIN_24  //
@@ -32,7 +30,7 @@ module top (
 
   // regs that hold values for each digit of the clock.
   reg sec_ind;
-  reg [15:0] min_time_count;
+  reg [15:0] sec_time_count;
   reg [15:0] hour_time_count;
   reg [15:0] hour_time_count_2;
 
@@ -47,50 +45,62 @@ module top (
   reg PIN_23_db;
   reg PIN_24_db;
 
-  reg [32:0] blink_counter;
+  reg [31:0] blink_counter;
   reg [3:0] display_select_counter;
 
   initial begin
     sec_ind <= 0;
     blink_counter <= 0;
     display_select_counter <= 0;
-    min_time_count <= 0;
+    sec_time_count <= 0;
     hour_time_count <= 0;
-
-    PIN_23_db <= 0;
-    PIN_24_db <= 0;
   end
 
-  // debounce db1(.clk(CLK), .PB(~PIN_23), .PB_state(PIN_23_db));
-  // debounce db2(.clk(CLK), .PB(~PIN_24), .PB_state(PIN_24_db));
+  debounce db1(.clk(CLK), .PB(~PIN_23), .PB_state(PIN_23_db));
+  debounce db2(.clk(CLK), .PB(~PIN_24), .PB_state(PIN_24_db));
 
   // increment the blink_counter every clock
   always @(posedge CLK) begin
 
-      if (blink_counter % 12000000 == 0) begin
+      blink_counter <= blink_counter + 1;
 
-        min_time_count <= min_time_count + 1;
+      if (blink_counter % 10000000 == 0) begin
+
+        // add second
+        sec_time_count <= sec_time_count + 1;
         sec_ind = ~sec_ind;
 
+        // time adjustment
         if (PIN_23_db == 1) begin
-          min_time_count <= min_time_count + 60;
+          sec_time_count <= sec_time_count + 60;
         end
-
         if (PIN_24_db == 1) begin
           hour_time_count <= hour_time_count + 1;
         end
 
-        if ((min_time_count / 60) / 10 == 5 && ((min_time_count / 60) % 10) == 9) begin
-            min_time_count <= 0;
+        // hour count up, minute reset
+        if (((sec_time_count / 60) / 10) == 5 && ((sec_time_count / 60) % 10) == 9) begin
+            sec_time_count <= 0;
             hour_time_count <= hour_time_count + 1;
         end
 
+        // hour count, day count
         if (hour_time_count == 9) begin
           hour_time_count <= 0;
           hour_time_count_2 = hour_time_count_2 + 1;
         end
 
+        if (hour_time_count_2 == 2 && hour_time_count == 3 && (sec_time_count / 60) / 10 == 5 && ((sec_time_count / 60) % 10) == 9) begin
+          hour_time_count <= 0;
+          hour_time_count_2 <= 0;
+          sec_time_count <= 0;
+          blink_counter <= 0;
+        end
+
       end
+
+      // =======================================================================
+      // =======================================================================
 
       if (blink_counter % 1000 == 0) begin
 
@@ -104,7 +114,6 @@ module top (
         display_select_counter <= display_select_counter + 1;
 
         end else if (display_select_counter == 1) begin
-
         gnd_1 = 1;
         gnd_2 = 0;
         gnd_3 = 1;
@@ -119,7 +128,8 @@ module top (
         gnd_2 = 1;
         gnd_3 = 0;
         gnd_4 = 1;
-        display_in <= (min_time_count / 60) / 10;
+        display_in <= (sec_time_count / 60) / 10;
+
         display_select_counter <= display_select_counter + 1;
 
         end else if (display_select_counter == 3) begin
@@ -128,13 +138,11 @@ module top (
         gnd_2 = 1;
         gnd_3 = 1;
         gnd_4 = 0;
-        display_in <= (min_time_count / 60) % 10;
+        display_in <= (sec_time_count / 60) % 10;
+
         display_select_counter <= 0;
         end
-
       end
-
-      blink_counter <= blink_counter + 1;
   end
 
   display_decoder decoder(.in(display_in), .value(display_out));
@@ -142,7 +150,7 @@ module top (
   assign PIN_14 = gnd_1;
   assign PIN_17 = gnd_2;
   assign PIN_18 = gnd_3;
-  assign PIN_8 = gnd_4;
+  assign PIN_8  = gnd_4;
 
   assign PIN_15 = display_out[6];
   assign PIN_19 = display_out[5];
